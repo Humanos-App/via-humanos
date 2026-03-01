@@ -19,7 +19,7 @@ ln -s $(pwd)/via-humanos ~/.openclaw/skills/via-humanos
 
 ## Configure
 
-1. Get an API key from [humanos.com](https://humanos.com)
+1. Get an API key from [app.humanos.id](https://app.humanos.id)
 2. Add credentials to `~/.openclaw/openclaw.json`:
 
 ```json
@@ -148,7 +148,7 @@ This listens for `tool.pre` events and blocks sensitive operations (payments, tr
 
 - [OpenClaw](https://openclaw.ai) installed
 - `curl`, `jq`, and `openssl` on PATH
-- VIA Protocol API key from [humanos.com](https://humanos.com)
+- VIA Protocol API key from [app.humanos.id](https://app.humanos.id)
 - Optional: `VIA_API_URL` only if you need a non-default API base URL
 
 ## License

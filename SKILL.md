@@ -90,11 +90,13 @@ Trigger keywords: approval, authorize, mandate, sign, consent, credential, KYC, 
 
 ## Prerequisites
 
-1. A VIA Protocol account with an API key from [humanos.com](https://humanos.com)
+1. A VIA Protocol account with an API key from [app.humanos.id](https://app.humanos.id)
 2. Environment variables set:
    - `VIA_API_KEY` — Bearer token for API authentication
    - `VIA_SIGNATURE_SECRET` — HMAC secret for request signing
    - Optional: `VIA_API_URL` — Override API base URL (default: `https://api.humanos.id`)
+
+Windows note: this skill is currently supported on macOS/Linux shells. On Windows, use WSL or Git Bash with `bash`, `curl`, `jq`, and `openssl` installed.
 
 ## Authentication
 
