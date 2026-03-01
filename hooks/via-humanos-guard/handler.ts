@@ -68,7 +68,7 @@ function _requiresMandate(toolName: string, args: Record<string, unknown>): bool
 function _signRequest(body: string, timestamp: string): string {
   const secret = process.env.VIA_SIGNATURE_SECRET;
   if (!secret) throw new Error("VIA_SIGNATURE_SECRET not set");
-  const payload = `${body}${timestamp}`;
+  const payload = body ? `${timestamp}.${body}` : timestamp;
   return createHmac("sha256", secret).update(payload).digest("hex");
 }
 
@@ -76,10 +76,10 @@ async function _checkMandateViaApi(
   toolName: string,
   scope: string
 ): Promise<MandateCheckResult> {
-  const apiUrl = process.env.VIA_API_URL;
+  const apiUrl = process.env.VIA_API_URL || "https://api.humanos.id";
   const apiKey = process.env.VIA_API_KEY;
 
-  if (!apiUrl || !apiKey) {
+  if (!apiKey) {
     return { valid: false, reason: "VIA API credentials not configured" };
   }
 

@@ -5,8 +5,9 @@ set -euo pipefail
 #
 # Before running, set your credentials:
 #   export VIA_API_KEY="your-api-key"
-#   export VIA_API_URL="https://api.humanos.com"
 #   export VIA_SIGNATURE_SECRET="your-signing-secret"
+# Optional override:
+#   export VIA_API_URL="https://api.humanos.id"
 
 SCRIPT_DIR="$(cd "$(dirname "$0")/../scripts" && pwd)"
 

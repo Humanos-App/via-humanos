@@ -10,7 +10,6 @@ metadata:
     requires:
       env:
         - VIA_API_KEY
-        - VIA_API_URL
         - VIA_SIGNATURE_SECRET
       bins:
         - curl
@@ -46,7 +45,6 @@ In `~/.openclaw/openclaw.json`:
           "enabled": true,
           "env": {
             "VIA_API_KEY": "your-api-key",
-            "VIA_API_URL": "https://api.humanos.com",
             "VIA_SIGNATURE_SECRET": "your-secret"
           }
         }
@@ -71,7 +69,8 @@ Set `VIA_PROTECTED_TOOLS` to a comma-separated list of tool name patterns that r
 ## Requirements
 
 - `curl` and `jq` on PATH
-- VIA Protocol API credentials (VIA_API_KEY, VIA_API_URL, VIA_SIGNATURE_SECRET)
+- VIA Protocol API credentials (VIA_API_KEY, VIA_SIGNATURE_SECRET)
+- Optional: VIA_API_URL to override the default `https://api.humanos.id`
 
 ## Installation
 

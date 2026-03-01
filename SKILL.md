@@ -6,19 +6,33 @@ homepage: https://github.com/Humanos-App/via-humanos
 user-invocable: true
 disable-model-invocation: false
 metadata:
-  clawdbot:
+  openclaw:
     requires:
       env:
         - VIA_API_KEY
-        - VIA_API_URL
         - VIA_SIGNATURE_SECRET
       bins:
         - curl
         - jq
+        - openssl
     os:
       - darwin
       - linux
-      - win32
+    primaryEnv: VIA_API_KEY
+    emoji: "shield"
+    homepage: https://github.com/Humanos-App/via-humanos
+  clawdbot:
+    requires:
+      env:
+        - VIA_API_KEY
+        - VIA_SIGNATURE_SECRET
+      bins:
+        - curl
+        - jq
+        - openssl
+    os:
+      - darwin
+      - linux
     primaryEnv: VIA_API_KEY
     emoji: "shield"
     homepage: https://github.com/Humanos-App/via-humanos
@@ -29,6 +43,24 @@ metadata:
 Use this skill whenever the agent is about to do something that requires a human to say "yes" first. It sends a secure approval request to the right person — they receive a link, review the details, and approve or reject. The result comes back as a W3C Verifiable Credential with cryptographic proof that the action was authorized.
 
 **The agent should NEVER proceed with a sensitive action (payment, signing, data access, transfer) without first using this skill to get authorization.**
+
+## Index
+
+1. [When to use this skill](#when-to-use-this-skill)
+2. [Prerequisites](#prerequisites)
+3. [Authentication](#authentication)
+4. [Operation Index (Fast Lookup)](#operation-index-fast-lookup)
+5. [Signing Algorithm (Exact Bytes, Critical)](#signing-algorithm-exact-bytes-critical)
+6. [Core Operations](#core-operations)
+7. [Decision Flow](#decision-flow)
+8. [Security Levels](#security-levels)
+9. [Credential Types](#credential-types)
+10. [Rate Limits](#rate-limits)
+11. [Error Handling](#error-handling)
+12. [401 Invalid Signature Playbook](#401-invalid-signature-playbook)
+13. [Output Format](#output-format)
+14. [External Endpoints](#external-endpoints)
+15. [Security and Privacy](#security-and-privacy)
 
 ## When to use this skill
 
@@ -60,8 +92,8 @@ Trigger keywords: approval, authorize, mandate, sign, consent, credential, KYC, 
 1. A VIA Protocol account with an API key from [humanos.com](https://humanos.com)
 2. Environment variables set:
    - `VIA_API_KEY` — Bearer token for API authentication
-   - `VIA_API_URL` — Base URL of the VIA API (e.g., `https://api.humanos.com`)
    - `VIA_SIGNATURE_SECRET` — HMAC secret for request signing
+   - Optional: `VIA_API_URL` — Override API base URL (default: `https://api.humanos.id`)
 
 ## Authentication
 
@@ -70,10 +102,58 @@ All API requests require:
 ```
 Authorization: Bearer $VIA_API_KEY
 X-Timestamp: <unix-timestamp-ms>
-X-Signature: <hmac-sha256 of body + timestamp using VIA_SIGNATURE_SECRET>
+X-Signature: <hmac-sha256 of (timestamp + "." + body) using VIA_SIGNATURE_SECRET>
 ```
 
 Use the signing script: `scripts/sign-request.sh`
+
+Official API documentation: https://humanos.mintlify.app/essentials/introduction
+
+## Operation Index (Fast Lookup)
+
+Use this as the primary lookup table before reading detailed sections.
+
+| Goal | Script | Method | Endpoint | Required Args |
+| --- | --- | --- | --- | --- |
+| Create approval request | `scripts/create-request.sh` | `POST` | `/v1/request` | `--contact`, `--type`, `--name` |
+| Check request status | `scripts/get-request.sh` | `GET` | `/v1/request/:id` | `--id` |
+| Find requests | `scripts/find-requests.sh` | `GET` | `/v1/request?contact|did|internalId` | one of `--contact`, `--did`, `--internal-id` |
+| Get credential proof | `scripts/get-credential.sh` | `GET` | `/v1/credential/:id` | `--id` |
+| Get mandate | `scripts/get-mandate.sh` | `GET` | `/v1/via/mandates/:id` | `--id` |
+| Get mandate VC | `scripts/get-mandate-vc.sh` | `GET` | `/v1/via/mandates/:id/vc` | `--id` |
+| Resolve DID | `scripts/resolve-did.sh` | `GET` | `/v1/via/dids/:did` | `--did` |
+| Look up user | `scripts/get-user.sh` | `GET` | `/v1/user?contact|did|internalId` | one of `--contact`, `--did`, `--internal-id` |
+| Cancel request | `scripts/cancel-request.sh` | `DELETE` | `/v1/request/:id` | `--id` |
+| Resend OTP | `scripts/resend-otp.sh` | `PATCH` | `/v1/request/resend/:id` | `--id` (and optional `--contact`) |
+
+## Signing Algorithm (Exact Bytes, Critical)
+
+All `401 Invalid signature` incidents should be debugged against this section.
+
+1. Build the request body once.
+2. Keep the body as a compact JSON string.
+3. Generate `timestamp` in unix milliseconds (13 digits).
+4. Compute payload as:
+   - `timestamp + "." + body` when body is not empty
+   - `timestamp` when body is empty
+5. Compute `signature = HMAC_SHA256_HEX(payload, VIA_SIGNATURE_SECRET)`.
+6. Send exactly the same body bytes in the HTTP request.
+
+### Deterministic checklist
+
+- Use `jq -c` or `jq -n` to build compact JSON.
+- Use `printf`, not `echo`, when signing (avoid accidental newline).
+- Do not reformat body after signature generation.
+- Sign and send immediately (avoid stale timestamps).
+- Keep UTF-8 text unchanged (accents and symbols must match).
+
+### Common failure modes
+
+- Timestamp includes non-digits (for example, `%3N` incompatibility on macOS).
+- Body was pretty-printed for signing but compacted for sending (or vice versa).
+- Body key order/escaping changed between signature and request.
+- Wrong base URL or environment points to different backend.
+- Secret/token mismatch between environments.
 
 ## Core Operations
 
@@ -224,6 +304,27 @@ When you need human approval, follow this flow:
 - **429 Too Many Requests** — Rate limit hit, wait and retry
 - **400 Bad Request** — Check request body format
 
+## 401 Invalid Signature Playbook
+
+Follow this exact sequence before escalating:
+
+1. Confirm endpoint is `https://api.humanos.id`.
+2. Confirm timestamp is 13-digit numeric milliseconds.
+3. Confirm signing payload is exactly:
+   - `timestamp + "." + body` (non-empty body), or
+   - `timestamp` (empty body).
+4. Confirm signed body bytes are the same bytes sent to `curl`.
+5. Confirm `VIA_SIGNATURE_SECRET` and `VIA_API_KEY` come from the same environment.
+6. Retry with a minimal JSON payload (single credential, no optional fields).
+7. If GET works and POST still fails, capture request metadata for backend support:
+   - endpoint path
+   - timestamp
+   - body length
+   - `sha256(body)`
+   - signature format (hex/base64)
+
+Escalation note for support: "GET succeeds with same key/secret, POST returns 401 Invalid signature using payload=`timestamp.body`."
+
 ## Output Format
 
 Always present results to the user in this format:
@@ -250,8 +351,11 @@ Always present results to the user in this format:
 | `$VIA_API_URL/v1/request/:id` | Request ID | Check approval status |
 | `$VIA_API_URL/v1/credential/:id` | Credential ID | Retrieve signed credentials |
 | `$VIA_API_URL/v1/via/mandates/:id` | Mandate ID | Get mandate details |
+| `$VIA_API_URL/v1/via/mandates?scope=<scope>&toolName=<tool>` | Scope, tool name | Query mandates for policy checks |
 | `$VIA_API_URL/v1/via/dids/:did` | DID identifier | Resolve DID documents |
 | `$VIA_API_URL/v1/user` | Contact/DID/internal ID | Look up users |
+
+Default base URL is `https://api.humanos.id` when `VIA_API_URL` is not set.
 
 ## Security and Privacy
 

@@ -19,9 +19,10 @@ fi
 
 source "$(dirname "$0")/sign-request.sh"
 
-BODY=""
+PATH_SUFFIX="/v1/request/resend/${ID}"
 if [[ -n "$CONTACT" ]]; then
-  BODY=$(jq -n --arg contact "$CONTACT" '{"contact": $contact}')
+  ENCODED_CONTACT=$(printf '%s' "$CONTACT" | jq -sRr @uri)
+  PATH_SUFFIX="${PATH_SUFFIX}?contact=${ENCODED_CONTACT}"
 fi
 
-via_curl PATCH "/v1/request/resend/${ID}" "$BODY"
+via_curl PATCH "${PATH_SUFFIX}"

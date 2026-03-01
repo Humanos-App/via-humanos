@@ -30,7 +30,6 @@ ln -s $(pwd)/via-humanos ~/.openclaw/skills/via-humanos
         "enabled": true,
         "env": {
           "VIA_API_KEY": "your-api-key",
-          "VIA_API_URL": "https://api.humanos.com",
           "VIA_SIGNATURE_SECRET": "your-signing-secret"
         }
       }
@@ -129,8 +128,9 @@ This listens for `tool.pre` events and blocks sensitive operations (payments, tr
 ## Requirements
 
 - [OpenClaw](https://openclaw.ai) installed
-- `curl` and `jq` on PATH
+- `curl`, `jq`, and `openssl` on PATH
 - VIA Protocol API key from [humanos.com](https://humanos.com)
+- Optional: `VIA_API_URL` only if you need a non-default API base URL
 
 ## License
 
