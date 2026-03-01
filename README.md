@@ -56,6 +56,25 @@ Talk to your OpenClaw agent naturally:
 "Cancel the pending approval request"
 ```
 
+## First-run payload rules
+
+To avoid generic `400 Bad Request` errors on create:
+
+- Use `consent`, `json`, or `document` in `--type` (inline `form` is not supported).
+- For `consent`, include a `text` field in `data`.
+- For `document`, include a `pdf` field in `data` with base64 content.
+- Keep `data` as an array of fields (`[{label,type,value,hidden}]`).
+
+Example (`consent`):
+
+```bash
+./scripts/create-request.sh \
+  --contact "+351919307983" \
+  --type "consent" \
+  --name "Football approval" \
+  --data '[{"label":"text","type":"string","value":"I approve football tomorrow.","hidden":false}]'
+```
+
 ## What It Does
 
 | Operation | Description |

@@ -36,18 +36,73 @@ fi
 
 source "$(dirname "$0")/sign-request.sh"
 
-CREDENTIALS=$(jq -n \
-  --arg type "$TYPE" \
+TYPE_UPPER=$(printf '%s' "$TYPE" | tr '[:lower:]' '[:upper:]')
+RAW_DATA_JSON="${DATA:-null}"
+
+if [[ "$TYPE_UPPER" == "FORM" ]]; then
+  echo '{"error":"FORM is not supported as inline credential data. Use an existing form resource ID (resourcesIds/groupIds) instead."}' >&2
+  exit 1
+fi
+
+DATA_ARRAY=$(jq -cn \
+  --arg type "$TYPE_UPPER" \
   --arg name "$NAME" \
-  --argjson data "${DATA:-null}" \
+  --argjson raw "${RAW_DATA_JSON}" '
+  def ensure_array:
+    if . == null then []
+    elif (type == "array") then .
+    else [.] end;
+
+  def with_hidden_default:
+    map(if (has("hidden")) then . else . + {hidden:false} end);
+
+  if $type == "CONSENT" then
+    (
+      if $raw == null then
+        [{label:"text", type:"string", value:("I consent to " + $name), hidden:false}]
+      elif ($raw | type) == "string" then
+        [{label:"text", type:"string", value:$raw, hidden:false}]
+      elif ($raw | type) == "object" and ($raw | has("text")) then
+        [{label:"text", type:"string", value:$raw.text, hidden:false}]
+      else
+        ($raw | ensure_array | with_hidden_default)
+      end
+    )
+    | if any(.[]; .label == "text" and ((.type|ascii_downcase) == "string") and (.hidden == false) and ((.value|tostring|length) > 0))
+      then .
+      else error("CONSENT requires at least one field: {\"label\":\"text\",\"type\":\"string\",\"value\":\"...\",\"hidden\":false}")
+      end
+  elif $type == "DOCUMENT" then
+    (
+      ($raw | ensure_array | with_hidden_default)
+      | if any(.[]; .label == "pdf" and ((.type|ascii_downcase) == "pdf") and (.hidden == false) and ((.value|tostring|length) > 0))
+        then .
+        else error("DOCUMENT requires at least one field: {\"label\":\"pdf\",\"type\":\"pdf\",\"value\":\"<base64>\",\"hidden\":false}")
+        end
+    )
+  else
+    (
+      if $raw == null then
+        [{label:"text", type:"string", value:$name, hidden:false}]
+      else
+        ($raw | ensure_array | with_hidden_default)
+      end
+    )
+  end
+')
+
+CREDENTIALS=$(jq -cn \
+  --arg type "$TYPE_UPPER" \
+  --arg name "$NAME" \
+  --argjson data "$DATA_ARRAY" \
   '[{
     "type": $type,
     "name": $name,
     "required": true,
-    "data": (if $data != null then $data else {} end)
+    "data": $data
   }]')
 
-BODY=$(jq -n \
+BODY=$(jq -cn \
   --arg contact "$CONTACT" \
   --argjson credentials "$CREDENTIALS" \
   --arg security "$SECURITY" \

@@ -51,16 +51,17 @@ Use this skill whenever the agent is about to do something that requires a human
 3. [Authentication](#authentication)
 4. [Operation Index (Fast Lookup)](#operation-index-fast-lookup)
 5. [Signing Algorithm (Exact Bytes, Critical)](#signing-algorithm-exact-bytes-critical)
-6. [Core Operations](#core-operations)
-7. [Decision Flow](#decision-flow)
-8. [Security Levels](#security-levels)
-9. [Credential Types](#credential-types)
-10. [Rate Limits](#rate-limits)
-11. [Error Handling](#error-handling)
-12. [401 Invalid Signature Playbook](#401-invalid-signature-playbook)
-13. [Output Format](#output-format)
-14. [External Endpoints](#external-endpoints)
-15. [Security and Privacy](#security-and-privacy)
+6. [Create Request Rules (Critical)](#create-request-rules-critical)
+7. [Core Operations](#core-operations)
+8. [Decision Flow](#decision-flow)
+9. [Security Levels](#security-levels)
+10. [Credential Types](#credential-types)
+11. [Rate Limits](#rate-limits)
+12. [Error Handling](#error-handling)
+13. [401 Invalid Signature Playbook](#401-invalid-signature-playbook)
+14. [Output Format](#output-format)
+15. [External Endpoints](#external-endpoints)
+16. [Security and Privacy](#security-and-privacy)
 
 ## When to use this skill
 
@@ -126,6 +127,54 @@ Use this as the primary lookup table before reading detailed sections.
 | Cancel request | `scripts/cancel-request.sh` | `DELETE` | `/v1/request/:id` | `--id` |
 | Resend OTP | `scripts/resend-otp.sh` | `PATCH` | `/v1/request/resend/:id` | `--id` (and optional `--contact`) |
 
+## Create Request Rules (Critical)
+
+Follow these rules to avoid generic `400 Failed to generate credentials request` responses.
+
+1. Use `--type` as: `document`, `consent`, or `json` (lowercase input; script converts internally).
+2. `form` is not supported as inline credential in this script. Use resource IDs for forms.
+3. `--data` should be JSON array of fields. A single object is also accepted and auto-wrapped.
+4. Every field should follow:
+   - `label` (string)
+   - `type` (`string`, `number`, `boolean`, `date`, `url`, `pdf`, `object`, `array`)
+   - `value` (matches `type`)
+   - `hidden` (boolean; defaults to `false`)
+5. Type-specific mandatory fields:
+   - `consent`: must include `{"label":"text","type":"string","value":"...","hidden":false}`
+   - `document`: must include `{"label":"pdf","type":"pdf","value":"<base64>","hidden":false}`
+
+### Valid examples (copy/paste)
+
+**Consent (recommended for simple approvals):**
+```bash
+scripts/create-request.sh \
+  --contact "+351919307983" \
+  --type "consent" \
+  --name "Football approval" \
+  --data '[{"label":"text","type":"string","value":"I approve football tomorrow.","hidden":false}]'
+```
+
+**JSON mandate:**
+```bash
+scripts/create-request.sh \
+  --contact "user@example.com" \
+  --type "json" \
+  --name "Hotel Booking Authorization" \
+  --data '[
+    {"label":"amount","type":"number","value":450,"hidden":false},
+    {"label":"currency","type":"string","value":"EUR","hidden":false}
+  ]'
+```
+
+**Document signature:**
+```bash
+scripts/create-request.sh \
+  --contact "user@example.com" \
+  --type "document" \
+  --name "NDA Signature" \
+  --data '[{"label":"pdf","type":"pdf","value":"<base64-pdf>","hidden":false}]'
+```
+
 ## Signing Algorithm (Exact Bytes, Critical)
 
 All `401 Invalid signature` incidents should be debugged against this section.
@@ -164,18 +213,18 @@ When the agent needs human authorization for an action:
 ```bash
 scripts/create-request.sh \
   --contact "user@example.com" \
-  --type "document" \
+  --type "json" \
   --name "Hotel Booking Authorization" \
   --security "CONTACT" \
-  --data '{"label":"amount","value":"€450","type":"string"}'
+  --data '[{"label":"amount","type":"number","value":450,"hidden":false}]'
 ```
 
 **Parameters:**
 - `--contact` — Email or phone number of the person who must approve (required)
-- `--type` — Type of credential: `document`, `form`, `json`, or `consent` (required)
+- `--type` — Type of credential: `document`, `json`, or `consent` (required). `form` inline is not supported.
 - `--name` — Human-readable name for the approval (required)
 - `--security` — Security level: `CONTACT`, `ORGANIZATION_KYC`, `HUMANOS_KYC` (default: CONTACT)
-- `--data` — JSON data to include in the credential (optional)
+- `--data` — JSON array of mandate fields (optional for `json`; strongly recommended for `consent`/`document`)
 - `--language` — Language for the approval UI: `ENG` or `PRT` (default: ENG)
 - `--redirect` — URL to redirect user after approval (optional)
 - `--internal-id` — Your internal reference ID (optional)
